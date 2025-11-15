@@ -1,4 +1,5 @@
 "use client";
+
 import {
   Table,
   TableBody,
@@ -10,86 +11,107 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import DefaultLayout from "@/layouts/default";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-const invoices = [
-  {
-    invoice: "INV001",
-    paymentStatus: "Paid",
-    totalAmount: "$250.00",
-    paymentMethod: "Credit Card",
-  },
-  {
-    invoice: "INV002",
-    paymentStatus: "Pending",
-    totalAmount: "$150.00",
-    paymentMethod: "PayPal",
-  },
-  {
-    invoice: "INV003",
-    paymentStatus: "Unpaid",
-    totalAmount: "$350.00",
-    paymentMethod: "Bank Transfer",
-  },
-  {
-    invoice: "INV004",
-    paymentStatus: "Paid",
-    totalAmount: "$450.00",
-    paymentMethod: "Credit Card",
-  },
-  {
-    invoice: "INV005",
-    paymentStatus: "Paid",
-    totalAmount: "$550.00",
-    paymentMethod: "PayPal",
-  },
-  {
-    invoice: "INV006",
-    paymentStatus: "Pending",
-    totalAmount: "$200.00",
-    paymentMethod: "Bank Transfer",
-  },
-  {
-    invoice: "INV007",
-    paymentStatus: "Unpaid",
-    totalAmount: "$300.00",
-    paymentMethod: "Credit Card",
-  },
-];
+import DefaultLayout from "@/layouts/default";
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
+
+interface Substitution {
+  class_name: string;
+  period: string;
+  absent_teacher: string;
+  substitution_teacher: string;
+  room: string;
+  info: string;
+  date: string;
+}
 
 export default function Substitutions() {
+  const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const username = searchParams.get("username");
+    const password = searchParams.get("password");
+
+    if (!username || !password) return;
+
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch("/api/substitutions", {
+          method: "GET",
+          headers: {
+            Authorization: `Basic ${btoa(`${username}:${password}`)}`,
+          },
+        });
+
+        if (!response.ok) {
+          console.error("Authentication failed");
+          return;
+        }
+
+        const data = await response.json();
+
+        setSubstitutions(data);
+      } catch (err) {
+        console.error("Error fetching substitutions:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [searchParams]);
+
   return (
     <DefaultLayout>
       <div className="w-full max-w-4xl mx-auto p-6">
         <Table>
-          <TableCaption>A list of your recent invoices.</TableCaption>
+          <TableCaption>Substitutions</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[100px]">Invoice</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Method</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Class</TableHead>
+              <TableHead>Period</TableHead>
+              <TableHead>Absent Teacher</TableHead>
+              <TableHead>Substitution Teacher</TableHead>
+              <TableHead>Room</TableHead>
+              <TableHead>Info</TableHead>
+              <TableHead>Date</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
-            {invoices.map((invoice) => (
-              <TableRow key={invoice.invoice}>
-                <TableCell className="font-medium">{invoice.invoice}</TableCell>
-                <TableCell>{invoice.paymentStatus}</TableCell>
-                <TableCell>{invoice.paymentMethod}</TableCell>
-                <TableCell className="text-right">
-                  {invoice.totalAmount}
-                </TableCell>
+            {substitutions.map((sub, index) => (
+              <TableRow key={index}>
+                <TableCell>{sub.class_name}</TableCell>
+                <TableCell>{sub.period}</TableCell>
+                <TableCell>{sub.absent_teacher}</TableCell>
+                <TableCell>{sub.substitution_teacher}</TableCell>
+                <TableCell>{sub.room}</TableCell>
+                <TableCell>{sub.info}</TableCell>
+                <TableCell>{sub.date}</TableCell>
               </TableRow>
             ))}
           </TableBody>
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={3}>Total</TableCell>
-              <TableCell className="text-right">$2,500.00</TableCell>
+              <TableCell colSpan={7} className="text-right">
+                Last updated:{" "}
+                {lastUpdated ? lastUpdated.toLocaleString() : "N/A"}
+              </TableCell>
             </TableRow>
           </TableFooter>
         </Table>
+        {isLoading && (
+          <div className="flex justify-center items-center">
+            <Spinner key="circle-filled" variant="circle-filled" />
+          </div>
+        )}
       </div>
     </DefaultLayout>
   );

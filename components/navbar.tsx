@@ -42,18 +42,6 @@ export const Navbar = () => {
             {"Home"}
           </NextLink>
         </NavbarItem>
-        <NavbarItem key="editor">
-          <NextLink
-            className={clsx(
-              linkStyles({ color: "foreground" }),
-              "data-[active=true]:text-primary data-[active=true]:font-medium",
-            )}
-            color="foreground"
-            href="/editor"
-          >
-            {"Editor"}
-          </NextLink>
-        </NavbarItem>
         <NavbarItem className="hidden sm:flex gap-2">
           <Link isExternal href={siteConfig.links.github} title="GitHub">
             <GithubIcon className="text-default-500" />

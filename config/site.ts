@@ -16,6 +16,10 @@ export const siteConfig = {
       label: "Infoscreen",
       href: "/infoscreen",
     },
+    {
+      label: "Account",
+      href: "/account",
+    },
   ],
   navMenuItems: [],
   links: {
