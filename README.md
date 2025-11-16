@@ -1,36 +1,17 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/BennoCrafter/framr/refs/heads/main/public/icon.png" width="200" alt="framr Logo" style="vertical-align: middle;">
-  <svg
-    fill="none"
-    height="{size || height}"
-    width="{size || height}"
-    viewBox="0 0 32 32"
-    {...props}
-    style="vertical-align: middle;"
-  >
-    <rect
-      x="{6}"
-      y="{6}"
-      width="{20}"
-      height="{20}"
-      rx="{6}" // corner radius
-      ry="{6}"
-      stroke="currentColor"
-      strokeWidth="{2}"
-      fill="none"
-    />
-  </svg>
+  <img src="public/RoundedIcon.png" width="150" height="150" alt="schule-infoportal icon">
 </p>
 
 <div align="center">
-    <h1>Framr</h1>
+  <h1>schule-infoportal</h1>
 
-  **Transform your favourite albums, movies & series into stunning posters—perfect for upgrading your room.**
+  **Unofficial website for accessing data from infoportal by art soft and more GmbH**
+
+  [![Stars](https://img.shields.io/github/stars/BennoCrafter/schule-infoportal-api?style=social)](https://github.com/BennoCrafter/schule-infoportal-api)
+  [![Last Updated](https://img.shields.io/github/last-commit/BennoCrafter/schule-infoportal-api)](https://github.com/BennoCrafter/schule-infoportal-api/commits/main)
+  [![Live URL](https://img.shields.io/website?url=https%3A%2F%2Fschule-infoportal.vercel.app)](https://schule-infoportal.vercel.app)
+  [![API](https://img.shields.io/website?url=https%3A%2F%2Fschule-infoportal-api.vercel.app%2Fdocs)](https://schule-infoportal-api.vercel.app/docs)
 </div>
 
-## 🔭 **Overview**
-
-## 🖼️ Demo
-
-
-This project is educational, non-commercial, and fully open to contributions. All rights to the images and data are owned by the respective artists.
+# Preview
+---
