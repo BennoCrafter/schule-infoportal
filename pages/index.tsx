@@ -17,7 +17,7 @@ export default function LoginPage() {
   useEffect(() => {
     setHydrated(true);
     try {
-      if (sessionStorage.getItem("schule_auth")) {
+      if (localStorage.getItem("schule_auth")) {
         router.replace("/substitutions");
       }
     } catch {}
@@ -30,7 +30,7 @@ export default function LoginPage() {
     try {
       const api = new SchuleInfoportalAPI(API_URL, username, password);
       await api.authCheck();
-      sessionStorage.setItem(
+      localStorage.setItem(
         "schule_auth",
         JSON.stringify({ username, password }),
       );

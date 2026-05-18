@@ -666,7 +666,7 @@ export default function SubstitutionsPage() {
   // ── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem("schule_auth");
+      const raw = localStorage.getItem("schule_auth");
       if (!raw) {
         router.replace("/");
         return;
@@ -682,7 +682,7 @@ export default function SubstitutionsPage() {
   const handleError = useCallback((err: unknown) => {
     const msg = err instanceof Error ? err.message : "";
     if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
-      sessionStorage.removeItem("schule_auth");
+      localStorage.removeItem("schule_auth");
       router.replace("/");
     } else {
       setError("Fehler beim Laden der Daten.");
@@ -812,7 +812,7 @@ export default function SubstitutionsPage() {
   // ── Handlers ───────────────────────────────────────────────────────────────
   const logout = () => {
     try {
-      sessionStorage.removeItem("schule_auth");
+      localStorage.removeItem("schule_auth");
     } catch {}
     router.replace("/");
   };
