@@ -16,8 +16,19 @@
 # Preview
 ---
 
-<div align="center" style="display: flex; flex-direction: row; justify-content: center; gap: 10px;">
-  <img src="assets/preview_login_page.png" width="33%" alt="Login page preview">
-  <img src="assets/preview_substitution_day_view.png" width="33%" alt="Substitution day view preview">
-  <img src="assets/preview_substitution_week_view.png" width="33%" alt="Substitution week view preview">
-</div>
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/preview_login_page.png" width="100%" alt="Login page preview"><br>
+      <sub><b>Login</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/preview_substitution_day_view.png" width="100%" alt="Substitution day view preview"><br>
+      <sub><b>Substitutions — Day view</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/preview_substitution_week_view.png" width="100%" alt="Substitution week view preview"><br>
+      <sub><b>Substitutions — Week view</b></sub>
+    </td>
+  </tr>
+</table>
