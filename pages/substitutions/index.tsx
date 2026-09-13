@@ -1000,9 +1000,13 @@ export default function SubstitutionsPage() {
     }
   }, []);
 
+  const dayFetchId = useRef(0);
+  const weekFetchId = useRef(0);
+
   // ── Day fetch ──────────────────────────────────────────────────────────────
   const fetchDayData = useCallback(async () => {
     if (!apiRef.current) return;
+    const requestId = ++dayFetchId.current;
     setDayLoading(true);
     setError(null);
     try {
@@ -1013,6 +1017,7 @@ export default function SubstitutionsPage() {
           : apiRef.current.getNewsForDate(selectedDate),
         apiRef.current.getLastUpdated(),
       ]);
+      if (requestId !== dayFetchId.current) return;
       // Day view: sort by period first, then class
       setDaySubs(
         [...subs].sort((a, b) => {
@@ -1024,15 +1029,17 @@ export default function SubstitutionsPage() {
       setNews(newsData);
       setLastUpdated(updated);
     } catch (e) {
+      if (requestId !== dayFetchId.current) return;
       handleError(e);
     } finally {
-      setDayLoading(false);
+      if (requestId === dayFetchId.current) setDayLoading(false);
     }
   }, [selectedDate, handleError]);
 
   // ── Week fetch ─────────────────────────────────────────────────────────────
   const fetchWeekData = useCallback(async () => {
     if (!apiRef.current) return;
+    const requestId = ++weekFetchId.current;
     setWeekLoading(true);
     setError(null);
     try {
@@ -1043,12 +1050,14 @@ export default function SubstitutionsPage() {
         }),
         apiRef.current.getLastUpdated(),
       ]);
+      if (requestId !== weekFetchId.current) return;
       setWeekSubs(subs);
       setLastUpdated(updated);
     } catch (e) {
+      if (requestId !== weekFetchId.current) return;
       handleError(e);
     } finally {
-      setWeekLoading(false);
+      if (requestId === weekFetchId.current) setWeekLoading(false);
     }
   }, [weekStart, handleError]);
 
@@ -1341,11 +1350,6 @@ export default function SubstitutionsPage() {
             {/* "Heute" jump button — only show when not on today */}
           </div>
 
-          {/* Class filter — the divider + "Alle" pill render unconditionally
-              so this row never appears/disappears as availableClasses goes
-              from empty to populated (on load or view switch); that used to
-              shift everything below it, making the whole table look like it
-              was jumping around. Only the per-class list grows/shrinks. */}
           <Divider hideOnMobile />
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-0.5 min-w-0">
             <FilterPill
@@ -1372,8 +1376,8 @@ export default function SubstitutionsPage() {
                   <FilterPill
                     key={selectedClass}
                     active={true}
-                    onClick={() => {}}
                     grayedOut={true}
+                    onClick={() => {}}
                   >
                     {selectedClass}
                   </FilterPill>
