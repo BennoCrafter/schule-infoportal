@@ -56,6 +56,7 @@ const MONTHS_LONG = [
 
 function parseDateStr(dateStr: string): Date {
   const [y, m, d] = dateStr.split("-").map(Number);
+
   return new Date(y, m - 1, d);
 }
 
@@ -63,6 +64,7 @@ function serializeDate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
+
   return `${y}-${m}-${d}`;
 }
 
@@ -72,7 +74,9 @@ export function getTodayStr(): string {
 
 export function addDays(dateStr: string, n: number): string {
   const d = parseDateStr(dateStr);
+
   d.setDate(d.getDate() + n);
+
   return serializeDate(d);
 }
 
@@ -82,11 +86,13 @@ export function isToday(dateStr: string): boolean {
 
 export function formatDateShort(dateStr: string): string {
   const d = parseDateStr(dateStr);
+
   return `${DAYS_SHORT[d.getDay()]}, ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 export function formatDateLong(dateStr: string): string {
   const d = parseDateStr(dateStr);
+
   return `${DAYS_LONG[d.getDay()]}, ${d.getDate()}. ${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
 }
 
@@ -126,8 +132,19 @@ export function classComparator(a: string, b: string): number {
 
 export function getMondayOfWeek(dateStr: string): string {
   const d = parseDateStr(dateStr);
-  const dow = d.getDay();
-  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  const dow = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+  if (dow === 6) {
+    // Saturday
+    d.setDate(d.getDate() + 2);
+  } else if (dow === 0) {
+    // Sunday
+    d.setDate(d.getDate() + 1);
+  } else {
+    // Monday to Friday: monday in same week
+    d.setDate(d.getDate() - (dow - 1));
+  }
+
   return serializeDate(d);
 }
 
@@ -139,8 +156,10 @@ export function getISOWeek(dateStr: string): number {
   const d = parseDateStr(dateStr);
   const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const day = utc.getUTCDay() || 7;
+
   utc.setUTCDate(utc.getUTCDate() + 4 - day);
   const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+
   return Math.ceil(
     ((utc.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7,
   );
@@ -149,10 +168,13 @@ export function getISOWeek(dateStr: string): number {
 export function formatWeekLabel(mondayStr: string): string {
   const friday = parseDateStr(addDays(mondayStr, 4));
   const monday = parseDateStr(mondayStr);
+
   const kw = getISOWeek(mondayStr);
+
   if (monday.getMonth() === friday.getMonth()) {
     return `KW\u00a0${kw}\u2002\u00b7\u2002${monday.getDate()}.\u2013${friday.getDate()}. ${MONTHS_SHORT[monday.getMonth()]} ${monday.getFullYear()}`;
   }
+
   return `KW\u00a0${kw}\u2002\u00b7\u2002${monday.getDate()}. ${MONTHS_SHORT[monday.getMonth()]}\u2013${friday.getDate()}. ${MONTHS_SHORT[friday.getMonth()]} ${friday.getFullYear()}`;
 }
 

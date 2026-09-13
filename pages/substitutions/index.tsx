@@ -1,8 +1,9 @@
+import { SchuleInfoportalAPI } from "@/lib/schule-infoportal-api";
+import type { LastUpdated, NewsMessage, Substitution } from "@/lib/types";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 
-import { SchuleInfoportalAPI } from "@/lib/schule-infoportal-api";
-import type { LastUpdated, NewsMessage, Substitution } from "@/lib/types";
 import {
   addDays,
   classComparator,
@@ -18,10 +19,24 @@ import {
 } from "@/lib/utils";
 
 const API_URL = "/api/proxy";
+const CLASS_STORAGE_KEY = "schule_selected_class";
+const VIEW_STORAGE_KEY = "schule_view_mode";
 
 type ViewMode = "day" | "week";
 
-// ─── Shared micro-components ──────────────────────────────────────────────────
+// Accent theme (yellow)
+// Single hue (101.49) shared by every accent surface — only lightness/chroma
+// vary between the bright fill, the deeper gradient stop, and the on-dark text.
+const ACCENT = {
+  base: "oklch(0.9333 0.1567 101.49)",
+  deep: "oklch(0.78 0.16 101.49)",
+  mid: "oklch(0.85 0.15 101.49)",
+  fg: "oklch(0.24 0.05 101.49)",
+  soft: (a: number) => `oklch(0.9333 0.1567 101.49 / ${a})`,
+  glow: (a: number) => `oklch(0.85 0.15 101.49 / ${a})`,
+};
+
+// Shared micro-components
 
 function InfoBadge({ info }: { info: string }) {
   const s = getInfoStyle(info);
@@ -432,9 +447,9 @@ function WeekDayCard({
       className="rounded-xl overflow-hidden animate-si-slide-up"
       style={{
         background: "var(--card)",
-        border: `1px solid ${todayDate ? "oklch(0.55 0.22 285 / 0.4)" : "var(--border)"}`,
+        border: `1px solid ${todayDate ? ACCENT.glow(0.4) : "var(--border)"}`,
         boxShadow: todayDate
-          ? "0 0 0 1px oklch(0.55 0.22 285 / 0.15), 0 4px 20px oklch(0 0 0 / 0.18)"
+          ? `0 0 0 1px ${ACCENT.glow(0.15)}, 0 4px 20px oklch(0 0 0 / 0.18)`
           : "0 2px 12px oklch(0 0 0 / 0.15)",
       }}
     >
@@ -450,9 +465,9 @@ function WeekDayCard({
             <span
               className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest"
               style={{
-                background: "oklch(0.55 0.22 285 / 0.15)",
-                color: "oklch(0.75 0.18 285)",
-                border: "1px solid oklch(0.55 0.22 285 / 0.3)",
+                background: ACCENT.soft(0.15),
+                color: ACCENT.mid,
+                border: `1px solid ${ACCENT.soft(0.3)}`,
               }}
             >
               Heute
@@ -474,9 +489,9 @@ function WeekDayCard({
               : subs.length === 0
                 ? { background: "var(--muted)", color: "oklch(0.45 0 0)" }
                 : {
-                    background: "oklch(0.55 0.22 285 / 0.15)",
-                    color: "oklch(0.75 0.18 285)",
-                    border: "1px solid oklch(0.55 0.22 285 / 0.2)",
+                    background: ACCENT.soft(0.15),
+                    color: ACCENT.mid,
+                    border: `1px solid ${ACCENT.soft(0.2)}`,
                   }
           }
         >
@@ -498,6 +513,242 @@ function WeekDayCard({
         />
       )}
     </div>
+  );
+}
+
+// ─── Week timetable (desktop): real weekday × period grid ────────────────────
+
+function formatDayHeader(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const weekday = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][date.getDay()];
+
+  return { weekday, dm: `${d}.${m}.` };
+}
+
+function TimetableEntry({ sub }: { sub: Substitution }) {
+  return (
+    <div
+      className="inline-flex w-fit max-w-full flex-col gap-1 py-1.5 px-2 rounded-lg"
+      style={{ background: "var(--muted)" }}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span
+          className="font-black text-[11px] shrink-0"
+          style={{ color: "var(--foreground)" }}
+        >
+          {sub.class_name}
+        </span>
+        <span
+          className="text-[10px] min-w-0 truncate"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {sub.absent_teacher || "—"}
+          <span className="mx-0.5" style={{ color: "oklch(0.45 0 0)" }}>
+            →
+          </span>
+          <span
+            style={{
+              color: sub.substitution_teacher
+                ? "var(--foreground)"
+                : "oklch(0.4 0 0)",
+            }}
+          >
+            {sub.substitution_teacher || "—"}
+          </span>
+        </span>
+      </div>
+      {(sub.subject_abbreviation || sub.room || sub.info) && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {sub.subject_abbreviation && (
+            <span
+              className="text-[9px] font-mono font-bold"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {sub.subject_abbreviation}
+            </span>
+          )}
+          {sub.room && (
+            <span
+              className="text-[9px] font-mono"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {sub.room}
+            </span>
+          )}
+          {sub.info && <InfoBadge info={sub.info} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimetableCell({ subs }: { subs: Substitution[] }) {
+  if (subs.length === 0) {
+    return (
+      <span className="text-xs" style={{ color: "oklch(0.32 0 0)" }}>
+        –
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {subs.map((sub, i) => (
+        <TimetableEntry key={i} sub={sub} />
+      ))}
+    </div>
+  );
+}
+
+function WeekTimetable({
+  days,
+  periods,
+  map,
+  loading,
+}: {
+  days: string[];
+  periods: number[];
+  map: Map<string, Substitution[]>;
+  loading: boolean;
+}) {
+  return (
+    <section
+      className="rounded-2xl overflow-hidden animate-si-slide-up"
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 4px 24px oklch(0 0 0 / 0.2)",
+      }}
+    >
+      <div className="overflow-x-auto">
+        <table
+          className="w-full border-collapse"
+          style={{ minWidth: 780, tableLayout: "fixed" }}
+        >
+          <thead>
+            <tr>
+              <th
+                className="text-left px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap"
+                style={{
+                  color: "var(--muted-foreground)",
+                  borderBottom: "1px solid var(--border)",
+                  borderRight: "1px solid var(--border)",
+                  width: 56,
+                }}
+              >
+                Std.
+              </th>
+              {days.map((day) => {
+                const { weekday, dm } = formatDayHeader(day);
+                const todayCol = isToday(day);
+
+                return (
+                  <th
+                    key={day}
+                    className="text-left px-3 py-2.5 whitespace-nowrap"
+                    style={{
+                      borderBottom: "1px solid var(--border)",
+                      background: todayCol ? ACCENT.soft(0.08) : "transparent",
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="text-xs font-bold"
+                        style={{
+                          color: todayCol ? ACCENT.mid : "var(--foreground)",
+                        }}
+                      >
+                        {weekday}
+                      </span>
+                      <span
+                        className="text-[10px] font-normal normal-case tracking-normal"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        {dm}
+                      </span>
+                      {todayCol && (
+                        <span
+                          className="text-[8px] font-black px-1 py-0.5 rounded uppercase tracking-widest"
+                          style={{
+                            background: ACCENT.soft(0.15),
+                            color: ACCENT.mid,
+                          }}
+                        >
+                          Heute
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {loading
+              ? periods.map((p) => (
+                  <tr
+                    key={p}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <td
+                      className="px-3 py-2.5 align-top"
+                      style={{ borderRight: "1px solid var(--border)" }}
+                    >
+                      <div
+                        className="rounded animate-si-pulse"
+                        style={{
+                          height: 18,
+                          width: 22,
+                          background: "var(--muted)",
+                        }}
+                      />
+                    </td>
+                    {days.map((day) => (
+                      <td key={day} className="px-2 py-2.5 align-top">
+                        <div
+                          className="rounded-lg animate-si-pulse"
+                          style={{ height: 36, background: "var(--muted)" }}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              : periods.map((p) => (
+                  <tr
+                    key={p}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <td
+                      className="px-3 py-2.5 align-top"
+                      style={{ borderRight: "1px solid var(--border)" }}
+                    >
+                      <PeriodBadge period={String(p)} />
+                    </td>
+                    {days.map((day) => {
+                      const subs = (map.get(day) ?? []).filter(
+                        (s) => parseInt(s.period, 10) === p,
+                      );
+                      return (
+                        <td
+                          key={day}
+                          className="px-2 py-2.5 align-top"
+                          style={{
+                            background: isToday(day)
+                              ? ACCENT.soft(0.04)
+                              : "transparent",
+                          }}
+                        >
+                          <TimetableCell subs={subs} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -532,33 +783,51 @@ function NavBtn({
   );
 }
 
+function Divider({ hideOnMobile = false }: { hideOnMobile?: boolean }) {
+  return (
+    <div
+      className={`w-px h-4 shrink-0 ${hideOnMobile ? "hidden sm:block" : ""}`}
+      style={{ background: "var(--border)" }}
+    />
+  );
+}
+
 function FilterPill({
   active,
   onClick,
   children,
+  grayedOut = false,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  grayedOut?: boolean;
 }) {
+  const style =
+    active && grayedOut
+      ? {
+          background: "var(--muted)",
+          color: "var(--muted-foreground)",
+          border: `1px solid ${ACCENT.soft(0.4)}`,
+        }
+      : active
+        ? {
+            background: `linear-gradient(135deg, ${ACCENT.base}, ${ACCENT.deep})`,
+            color: ACCENT.fg,
+            boxShadow: `0 2px 8px ${ACCENT.glow(0.35)}`,
+          }
+        : {
+            background: "var(--muted)",
+            color: "var(--muted-foreground)",
+            border: "1px solid var(--border)",
+          };
+
   return (
     <button
+      className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all disabled:cursor-not-allowed"
+      style={style}
+      disabled={grayedOut}
       onClick={onClick}
-      className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all"
-      style={
-        active
-          ? {
-              background:
-                "linear-gradient(135deg, oklch(0.55 0.22 285), oklch(0.45 0.25 275))",
-              color: "white",
-              boxShadow: "0 2px 8px oklch(0.5 0.22 280 / 0.3)",
-            }
-          : {
-              background: "var(--muted)",
-              color: "var(--muted-foreground)",
-              border: "1px solid var(--border)",
-            }
-      }
     >
       {children}
     </button>
@@ -643,7 +912,7 @@ export default function SubstitutionsPage() {
   const apiRef = useRef<SchuleInfoportalAPI | null>(null);
 
   // ── View / filter ──────────────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [selectedClass, setSelectedClass] = useState("all");
 
   // ── Day-view state ─────────────────────────────────────────────────────────
@@ -667,16 +936,58 @@ export default function SubstitutionsPage() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem("schule_auth");
+
       if (!raw) {
         router.replace("/");
         return;
       }
       const { username, password } = JSON.parse(raw);
+
       apiRef.current = new SchuleInfoportalAPI(API_URL, username, password);
     } catch {
       router.replace("/");
     }
   }, []);
+
+  // ── Restore persisted class filter / view mode ──────────────────────────────
+  // The write-effects below must not fire on the very first render — at that
+  // point state still holds its default ("all" / "week"), not yet the value the
+  // restore-effect is about to set, so an unguarded write would immediately
+  // clobber whatever was persisted from a previous visit.
+  const skipClassWrite = useRef(true);
+  const skipViewWrite = useRef(true);
+
+  useEffect(() => {
+    try {
+      const storedClass = localStorage.getItem(CLASS_STORAGE_KEY);
+
+      if (storedClass) setSelectedClass(storedClass);
+      const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
+
+      if (storedView === "day" || storedView === "week")
+        setViewMode(storedView);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (skipClassWrite.current) {
+      skipClassWrite.current = false;
+      return;
+    }
+    try {
+      localStorage.setItem(CLASS_STORAGE_KEY, selectedClass);
+    } catch {}
+  }, [selectedClass]);
+
+  useEffect(() => {
+    if (skipViewWrite.current) {
+      skipViewWrite.current = false;
+      return;
+    }
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
+    } catch {}
+  }, [viewMode]);
 
   // ── Auth error helper ──────────────────────────────────────────────────────
   const handleError = useCallback((err: unknown) => {
@@ -749,11 +1060,6 @@ export default function SubstitutionsPage() {
     if (viewMode === "week") fetchWeekData();
   }, [viewMode, fetchWeekData]);
 
-  // Reset class filter when navigating dates / weeks / switching views
-  useEffect(() => {
-    setSelectedClass("all");
-  }, [selectedDate, weekStart, viewMode]);
-
   // Auto-refresh every 5 min
   useEffect(() => {
     const id = setInterval(() => {
@@ -768,6 +1074,7 @@ export default function SubstitutionsPage() {
   // Available classes for the filter — natural-sorted, from the active view's data
   const availableClasses = useMemo(() => {
     const src = viewMode === "day" ? daySubs : weekSubs;
+
     return Array.from(new Set(src.map((s) => s.class_name))).sort(
       classComparator,
     );
@@ -786,16 +1093,19 @@ export default function SubstitutionsPage() {
   const weekByDay = useMemo(() => {
     const days = getWeekDays(weekStart);
     const map = new Map<string, Substitution[]>(days.map((d) => [d, []]));
+
     for (const sub of weekSubs) {
       if (map.has(sub.date)) map.get(sub.date)!.push(sub);
     }
     const result = new Map<string, Substitution[]>();
+
     for (const [day, subs] of map) {
       const filtered =
         selectedClass === "all"
           ? subs
           : subs.filter((s) => s.class_name === selectedClass);
       // Week view: sort by CLASS first (natural), then period within each class
+
       result.set(
         day,
         [...filtered].sort((a, b) => {
@@ -808,6 +1118,17 @@ export default function SubstitutionsPage() {
     }
     return { days, map: result };
   }, [weekSubs, weekStart, selectedClass]);
+
+  // Week timetable rows: union of periods across the (unfiltered) week, so the
+  // grid shape stays stable while the class filter changes
+  const weekPeriods = useMemo(() => {
+    const nums = weekSubs
+      .map((s) => parseInt(s.period, 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const max = nums.length > 0 ? Math.max(6, ...nums) : 6;
+
+    return Array.from({ length: max }, (_, i) => i + 1);
+  }, [weekSubs]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const logout = () => {
@@ -838,9 +1159,8 @@ export default function SubstitutionsPage() {
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
               style={{
-                background:
-                  "linear-gradient(135deg, oklch(0.55 0.22 285), oklch(0.45 0.25 275))",
-                boxShadow: "0 2px 8px oklch(0.5 0.22 280 / 0.3)",
+                background: `linear-gradient(135deg, ${ACCENT.base}, ${ACCENT.deep})`,
+                boxShadow: `0 2px 8px ${ACCENT.glow(0.35)}`,
               }}
             >
               <svg
@@ -848,7 +1168,7 @@ export default function SubstitutionsPage() {
                 height={14}
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="white"
+                stroke={ACCENT.fg}
                 strokeWidth={1.8}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -952,12 +1272,12 @@ export default function SubstitutionsPage() {
           {/* Date / week navigation */}
           <div className="flex items-center gap-0.5 shrink-0">
             <NavBtn
+              label="Zurück"
               onClick={() =>
                 viewMode === "day"
                   ? setSelectedDate((d) => addDays(d, -1))
                   : setWeekStart((w) => addDays(w, -7))
               }
-              label="Zurück"
             >
               <svg
                 width={14}
@@ -986,9 +1306,9 @@ export default function SubstitutionsPage() {
                 <span
                   className="text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide"
                   style={{
-                    background: "oklch(0.55 0.22 285 / 0.15)",
-                    color: "oklch(0.75 0.18 285)",
-                    border: "1px solid oklch(0.55 0.22 285 / 0.25)",
+                    background: ACCENT.soft(0.15),
+                    color: ACCENT.mid,
+                    border: `1px solid ${ACCENT.soft(0.25)}`,
                   }}
                 >
                   Heute
@@ -997,12 +1317,12 @@ export default function SubstitutionsPage() {
             </div>
 
             <NavBtn
+              label="Vor"
               onClick={() =>
                 viewMode === "day"
                   ? setSelectedDate((d) => addDays(d, 1))
                   : setWeekStart((w) => addDays(w, 7))
               }
-              label="Vor"
             >
               <svg
                 width={14}
@@ -1019,53 +1339,47 @@ export default function SubstitutionsPage() {
             </NavBtn>
 
             {/* "Heute" jump button — only show when not on today */}
-            {((viewMode === "day" && !isToday(selectedDate)) ||
-              (viewMode === "week" &&
-                weekStart !== getMondayOfWeek(getTodayStr()))) && (
-              <button
-                onClick={() => {
-                  const today = getTodayStr();
-                  if (viewMode === "day") setSelectedDate(today);
-                  else setWeekStart(getMondayOfWeek(today));
-                }}
-                className="ml-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all"
-                style={{
-                  background: "var(--muted)",
-                  color: "var(--muted-foreground)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                Heute
-              </button>
-            )}
           </div>
 
-          {/* Class filter — only if classes are known */}
-          {availableClasses.length > 0 && (
-            <>
-              <div
-                className="w-px h-4 hidden sm:block shrink-0"
-                style={{ background: "var(--border)" }}
-              />
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-0.5 min-w-0">
-                <FilterPill
-                  active={selectedClass === "all"}
-                  onClick={() => setSelectedClass("all")}
-                >
-                  Alle
-                </FilterPill>
-                {availableClasses.map((cls) => (
+          {/* Class filter — the divider + "Alle" pill render unconditionally
+              so this row never appears/disappears as availableClasses goes
+              from empty to populated (on load or view switch); that used to
+              shift everything below it, making the whole table look like it
+              was jumping around. Only the per-class list grows/shrinks. */}
+          <Divider hideOnMobile />
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-0.5 min-w-0">
+            <FilterPill
+              active={selectedClass === "all"}
+              onClick={() => setSelectedClass("all")}
+            >
+              Alle
+            </FilterPill>
+
+            {availableClasses.map((cls) => (
+              <FilterPill
+                key={cls}
+                active={selectedClass === cls}
+                onClick={() => setSelectedClass(cls)}
+              >
+                {cls}
+              </FilterPill>
+            ))}
+
+            {!availableClasses.includes(selectedClass) &&
+              selectedClass !== "all" && (
+                <>
+                  <Divider />
                   <FilterPill
-                    key={cls}
-                    active={selectedClass === cls}
-                    onClick={() => setSelectedClass(cls)}
+                    key={selectedClass}
+                    active={true}
+                    onClick={() => {}}
+                    grayedOut={true}
                   >
-                    {cls}
+                    {selectedClass}
                   </FilterPill>
-                ))}
-              </div>
-            </>
-          )}
+                </>
+              )}
+          </div>
 
           {/* View toggle — pushed to the end */}
           <div className="ml-auto shrink-0">
@@ -1166,8 +1480,8 @@ export default function SubstitutionsPage() {
                               color: "var(--muted-foreground)",
                             }
                           : {
-                              background: "oklch(0.55 0.22 285 / 0.15)",
-                              color: "oklch(0.75 0.18 285)",
+                              background: ACCENT.soft(0.15),
+                              color: ACCENT.mid,
                             }
                       }
                     >
@@ -1310,16 +1624,29 @@ export default function SubstitutionsPage() {
           </>
         ) : (
           /* ── Week view ────────────────────────────────────────────────── */
-          <div className="flex flex-col gap-3">
-            {weekByDay.days.map((day) => (
-              <WeekDayCard
-                key={day}
-                date={day}
-                subs={weekByDay.map.get(day) ?? []}
+          <>
+            {/* Mobile: stacked day cards */}
+            <div className="flex flex-col gap-3 sm:hidden">
+              {weekByDay.days.map((day) => (
+                <WeekDayCard
+                  key={day}
+                  date={day}
+                  subs={weekByDay.map.get(day) ?? []}
+                  loading={weekLoading}
+                />
+              ))}
+            </div>
+
+            {/* Desktop: real weekday × period timetable */}
+            <div className="hidden sm:block">
+              <WeekTimetable
+                days={weekByDay.days}
+                periods={weekPeriods}
+                map={weekByDay.map}
                 loading={weekLoading}
               />
-            ))}
-          </div>
+            </div>
+          </>
         )}
 
         <p

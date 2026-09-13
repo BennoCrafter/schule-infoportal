@@ -5,6 +5,14 @@ import { SchuleInfoportalAPI } from "@/lib/schule-infoportal-api";
 
 const API_URL = "/api/proxy";
 
+// ─── Accent theme (yellow) ────────────────────────────────────────────────────
+const ACCENT = {
+  base: "oklch(0.9333 0.1567 101.49)",
+  deep: "oklch(0.78 0.16 101.49)",
+  fg: "oklch(0.24 0.05 101.49)",
+  glow: (a: number) => `oklch(0.85 0.15 101.49 / ${a})`,
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -12,7 +20,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [hydrated, setHydrated] = useState(false);
+  const [hydrated, setHydrated] = useState(true);
 
   useEffect(() => {
     setHydrated(true);
@@ -29,7 +37,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const api = new SchuleInfoportalAPI(API_URL, username, password);
+
       await api.authCheck();
+
       localStorage.setItem(
         "schule_auth",
         JSON.stringify({ username, password }),
@@ -56,7 +66,7 @@ export default function LoginPage() {
         <div
           className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
           style={{
-            borderColor: "oklch(0.5 0.2 280)",
+            borderColor: ACCENT.glow(0.9),
             borderTopColor: "transparent",
           }}
         />
@@ -70,7 +80,7 @@ export default function LoginPage() {
       style={{ background: "var(--background)" }}
     >
       {/* Ambient glows */}
-      <div className="pointer-events-none absolute inset-0" aria-hidden>
+      <div className="aria-hidden pointer-events-none absolute inset-0">
         <div
           className="absolute rounded-full"
           style={{
@@ -80,7 +90,7 @@ export default function LoginPage() {
             width: 600,
             height: 600,
             background:
-              "radial-gradient(ellipse, oklch(0.45 0.22 280 / 0.12) 0%, transparent 70%)",
+              "radial-gradient(ellipse, oklch(0.85 0.15 101.49 / 0.14) 0%, transparent 70%)",
           }}
         />
         <div
@@ -91,7 +101,7 @@ export default function LoginPage() {
             width: 500,
             height: 500,
             background:
-              "radial-gradient(ellipse, oklch(0.45 0.22 240 / 0.08) 0%, transparent 70%)",
+              "radial-gradient(ellipse, oklch(0.8 0.15 70 / 0.08) 0%, transparent 70%)",
           }}
         />
         {/* Subtle dot grid */}
@@ -113,9 +123,8 @@ export default function LoginPage() {
             style={{
               width: 52,
               height: 52,
-              background:
-                "linear-gradient(135deg, oklch(0.55 0.22 285) 0%, oklch(0.45 0.25 275) 100%)",
-              boxShadow: "0 8px 32px oklch(0.5 0.22 280 / 0.35)",
+              background: `linear-gradient(135deg, ${ACCENT.base} 0%, ${ACCENT.deep} 100%)`,
+              boxShadow: `0 8px 32px ${ACCENT.glow(0.35)}`,
             }}
           >
             <svg
@@ -123,7 +132,7 @@ export default function LoginPage() {
               height={26}
               viewBox="0 0 24 24"
               fill="none"
-              stroke="white"
+              stroke={ACCENT.fg}
               strokeWidth={1.6}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -164,13 +173,12 @@ export default function LoginPage() {
                 Benutzername
               </label>
               <input
+                required
                 id="login-username"
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
                 placeholder="Benutzername"
                 autoComplete="username"
-                required
                 disabled={loading}
                 className="h-9 rounded-xl px-3.5 text-sm outline-none transition-all"
                 style={{
@@ -179,10 +187,10 @@ export default function LoginPage() {
                   color: "var(--foreground)",
                 }}
                 onFocus={(e) =>
-                  (e.currentTarget.style.boxShadow =
-                    "0 0 0 2px oklch(0.55 0.22 285 / 0.4)")
+                  (e.currentTarget.style.boxShadow = `0 0 0 2px ${ACCENT.glow(0.6)}`)
                 }
                 onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
 
@@ -212,8 +220,7 @@ export default function LoginPage() {
                     color: "var(--foreground)",
                   }}
                   onFocus={(e) =>
-                    (e.currentTarget.style.boxShadow =
-                      "0 0 0 2px oklch(0.55 0.22 285 / 0.4)")
+                    (e.currentTarget.style.boxShadow = `0 0 0 2px ${ACCENT.glow(0.6)}`)
                   }
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                 />
@@ -289,10 +296,9 @@ export default function LoginPage() {
               disabled={loading || !username || !password}
               className="h-9 rounded-xl text-sm font-semibold transition-all mt-0.5 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
-                background:
-                  "linear-gradient(135deg, oklch(0.55 0.22 285) 0%, oklch(0.45 0.25 275) 100%)",
-                color: "white",
-                boxShadow: "0 4px 16px oklch(0.5 0.22 280 / 0.3)",
+                background: `linear-gradient(135deg, ${ACCENT.base} 0%, ${ACCENT.deep} 100%)`,
+                color: ACCENT.fg,
+                boxShadow: `0 4px 16px ${ACCENT.glow(0.35)}`,
               }}
             >
               {loading ? (
@@ -300,7 +306,7 @@ export default function LoginPage() {
                   <span
                     className="w-3.5 h-3.5 rounded-full border-2 border-t-transparent animate-spin"
                     style={{
-                      borderColor: "rgba(255,255,255,0.4)",
+                      borderColor: "oklch(0.24 0.05 101.49 / 0.4)",
                       borderTopColor: "transparent",
                     }}
                   />
