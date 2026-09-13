@@ -17,7 +17,7 @@
 ---
 
 <div align="center" style="display: flex; flex-direction: row; justify-content: center; gap: 10px;">
-  <img src="assets/preview_login_page.png" width="60%" alt="Login page preview">
-  <img src="assets/preview_substitution_day_view.png" width="60%" alt="Substitution day view preview">
-  <img src="assets/preview_substitution_week_view.png" width="60%" alt="Substitution week view preview">
+  <img src="assets/preview_login_page.png" width="33%" alt="Login page preview">
+  <img src="assets/preview_substitution_day_view.png" width="33%" alt="Substitution day view preview">
+  <img src="assets/preview_substitution_week_view.png" width="33%" alt="Substitution week view preview">
 </div>
