@@ -21,6 +21,7 @@ import {
 const API_URL = "/api/proxy";
 const CLASS_STORAGE_KEY = "schule_selected_class";
 const VIEW_STORAGE_KEY = "schule_view_mode";
+const MAX_LAST_UPDATED_HOURS = 10;
 
 type ViewMode = "day" | "week";
 
@@ -1193,18 +1194,27 @@ export default function SubstitutionsPage() {
             </span>
           </div>
 
-          {lastUpdated?.has_date && lastUpdated.last_update && (
-            <div
-              className="hidden md:flex items-center gap-1.5 text-xs select-none"
-              style={{ color: "var(--muted-foreground)" }}
-            >
+          <div
+            className="hidden md:flex items-center gap-1.5 text-xs select-none"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            {lastUpdated?.has_date && lastUpdated.last_update && Math.floor((Date.now() - new Date(lastUpdated.last_update).getTime()) / 3600000) < MAX_LAST_UPDATED_HOURS ? (
               <span
                 className="w-1.5 h-1.5 rounded-full animate-si-pulse"
                 style={{ background: "rgb(34,197,94)" }}
-              />
-              Aktualisiert {formatDateTime(lastUpdated.last_update)} Uhr
-            </div>
-          )}
+              />            ) : (
+              <span
+                className="w-1.5 h-1.5 rounded-full animate-si-pulse"
+                style={{ background: "rgb(255, 38, 71)" }}
+              />            )}
+
+
+            {lastUpdated?.has_date && lastUpdated.last_update ? (
+              <span>Aktualisiert {formatDateTime(lastUpdated.last_update)} Uhr (vor {Math.floor((Date.now() - new Date(lastUpdated.last_update).getTime()) / 3600000)} Stunden)</span>
+            ) : (
+              <span>Aktualisierung nicht verfügbar</span>
+            )}
+          </div>
 
           <div className="flex items-center gap-1">
             <button
