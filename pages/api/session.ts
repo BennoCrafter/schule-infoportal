@@ -19,6 +19,12 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  if (!process.env.SESSION_SECRET) {
+    console.error("[session] SESSION_SECRET is not set");
+
+    return res.status(500).json({ error: "SESSION_SECRET is not set" });
+  }
+
   if (req.method === "GET") {
     const creds = await unseal(req.cookies[SESSION_COOKIE]);
 
@@ -50,23 +56,32 @@ export default async function handler(
     return res.status(400).json({ error: "Missing credentials" });
   }
 
+  let upstream: Response;
+
   try {
-    const upstream = await fetch(`${API_BASE}/auth/check`, {
+    upstream = await fetch(`${API_BASE}/auth/check`, {
       headers: { Authorization: basicAuth({ username, password }) },
       cache: "no-store",
     });
-
-    if (!upstream.ok) return res.status(401).json({ error: "Unauthorized" });
-
-    res.setHeader(
-      "Set-Cookie",
-      sessionCookie(await seal({ username, password })),
-    );
-
-    return res.status(204).end();
   } catch (err) {
     console.error("[session]", err);
 
     return res.status(502).json({ error: "Could not reach upstream API." });
   }
+
+  if (upstream.status === 401 || upstream.status === 403) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  if (!upstream.ok) {
+    return res
+      .status(502)
+      .json({ error: `Upstream API answered ${upstream.status}` });
+  }
+
+  res.setHeader(
+    "Set-Cookie",
+    sessionCookie(await seal({ username, password })),
+  );
+
+  return res.status(204).end();
 }
