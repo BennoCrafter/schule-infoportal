@@ -82,7 +82,8 @@ export function ClassPicker({
   }, [classes]);
   const selectedGrade = selected === "all" ? null : classGrade(selected);
   const [openGrade, setOpenGrade] = useState<string | null>(null);
-  const shownGrade = openGrade ?? selectedGrade;
+  // The class row only shows while a grade is being picked
+  const shownGrade = openGrade;
   const letters = shownGrade ? groups.get(shownGrade) : undefined;
 
   // Line the class row up under its grade chip, clamped so it stays on screen
@@ -137,7 +138,12 @@ export function ClassPicker({
                 : setOpenGrade(openGrade === grade ? null : grade)
             }
           >
-            {list.length === 1 ? list[0] : grade}
+            {/* Collapsed: the grade chip names the picked class, e.g. "11b" */}
+            {list.length === 1
+              ? list[0]
+              : selectedGrade === grade && openGrade !== grade
+                ? selected
+                : grade}
           </Chip>
         ))}
       </div>
