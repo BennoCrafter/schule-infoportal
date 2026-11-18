@@ -32,3 +32,13 @@
     </td>
   </tr>
 </table>
+
+# Setup
+---
+
+Login credentials are stored in an encrypted httpOnly cookie, so a server secret is required:
+
+```bash
+echo "SESSION_SECRET=$(openssl rand -hex 32)" > .env.local   # also set it in Vercel → Environment Variables
+npm install && npm run dev
+```

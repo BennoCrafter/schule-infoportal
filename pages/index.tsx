@@ -1,17 +1,21 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import {
+  Eye,
+  EyeOff,
+  GraduationCap,
+  LoaderCircle,
+  TriangleAlert,
+} from "lucide-react";
 
-import { SchuleInfoportalAPI } from "@/lib/schule-infoportal-api";
+import { getSessionUser, login, migrateLegacyAuth } from "@/lib/auth";
 
-const API_URL = "/api/proxy";
-
-// ─── Accent theme (yellow) ────────────────────────────────────────────────────
-const ACCENT = {
-  base: "oklch(0.9333 0.1567 101.49)",
-  deep: "oklch(0.78 0.16 101.49)",
-  fg: "oklch(0.24 0.05 101.49)",
-  glow: (a: number) => `oklch(0.85 0.15 101.49 / ${a})`,
-};
+const inputClass =
+  "h-10 w-full rounded-xl border bg-input/40 px-3.5 text-base sm:text-sm outline-none transition focus:border-brand-text focus:ring-2 focus:ring-brand-soft disabled:opacity-60";
+const labelClass =
+  "text-[11px] font-semibold uppercase tracking-widest text-muted-foreground";
+const brandGradient =
+  "linear-gradient(135deg, var(--brand), var(--brand-deep))";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,16 +23,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
-  const [hydrated, setHydrated] = useState(true);
 
+  // Already logged in (or migrating old saved credentials)? Skip the form.
   useEffect(() => {
-    setHydrated(true);
-    try {
-      if (localStorage.getItem("schule_auth")) {
-        router.replace("/substitutions");
-      }
-    } catch {}
+    migrateLegacyAuth()
+      .then(getSessionUser)
+      .then((ok) => {
+        if (ok) router.replace("/substitutions");
+        else setChecking(false);
+      });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,296 +41,133 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const api = new SchuleInfoportalAPI(API_URL, username, password);
+      const status = await login(username, password);
 
-      await api.authCheck();
-
-      localStorage.setItem(
-        "schule_auth",
-        JSON.stringify({ username, password }),
+      if (status === 204) return void router.push("/substitutions");
+      setError(
+        status === 401
+          ? "Benutzername oder Passwort ist falsch."
+          : "Anmeldung gerade nicht möglich. Bitte später erneut versuchen.",
       );
-      router.push("/substitutions");
     } catch {
-      setError("Ungültige Anmeldedaten. Bitte versuche es erneut.");
-    } finally {
-      setLoading(false);
+      setError("Keine Verbindung. Bitte Internetverbindung prüfen.");
     }
+    setLoading(false);
   };
 
-  if (!hydrated) {
+  if (checking) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--background)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div
-          className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
-          style={{
-            borderColor: ACCENT.glow(0.9),
-            borderTopColor: "transparent",
-          }}
+      <div className="min-h-dvh flex items-center justify-center">
+        <LoaderCircle
+          aria-label="Lädt"
+          className="animate-spin text-muted-foreground"
+          size={20}
         />
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: "var(--background)" }}
-    >
-      {/* Ambient glows */}
-      <div className="aria-hidden pointer-events-none absolute inset-0">
-        <div
-          className="absolute rounded-full"
-          style={{
-            top: "-20%",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: 600,
-            height: 600,
-            background:
-              "radial-gradient(ellipse, oklch(0.85 0.15 101.49 / 0.14) 0%, transparent 70%)",
-          }}
-        />
-        <div
-          className="absolute rounded-full"
-          style={{
-            bottom: "-20%",
-            right: "20%",
-            width: 500,
-            height: 500,
-            background:
-              "radial-gradient(ellipse, oklch(0.8 0.15 70 / 0.08) 0%, transparent 70%)",
-          }}
-        />
-        {/* Subtle dot grid */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(oklch(1 0 0 / 0.04) 1px, transparent 1px)",
-            backgroundSize: "28px 28px",
-          }}
-        />
-      </div>
+    <main className="relative min-h-dvh flex items-center justify-center p-4 overflow-hidden">
+      {/* Background: faint dot grid */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(color-mix(in oklch, var(--foreground) 7%, transparent) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
 
-      <div className="relative w-full max-w-[340px] animate-si-slide-up">
-        {/* Logo block */}
+      <div className="relative w-full max-w-[340px]">
         <div className="flex flex-col items-center mb-7">
-          <div
-            className="w-13 h-13 rounded-2xl flex items-center justify-center mb-4 shadow-lg"
-            style={{
-              width: 52,
-              height: 52,
-              background: `linear-gradient(135deg, ${ACCENT.base} 0%, ${ACCENT.deep} 100%)`,
-              boxShadow: `0 8px 32px ${ACCENT.glow(0.35)}`,
-            }}
+          <span
+            className="size-13 rounded-2xl text-brand-fg flex items-center justify-center mb-4"
+            style={{ background: brandGradient }}
           >
-            <svg
-              width={26}
-              height={26}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={ACCENT.fg}
-              strokeWidth={1.6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" />
-            </svg>
-          </div>
-          <h1
-            className="text-xl font-bold tracking-tight"
-            style={{ color: "var(--foreground)" }}
-          >
-            Vertretungsplan
-          </h1>
-          <p
-            className="text-sm mt-0.5"
-            style={{ color: "var(--muted-foreground)" }}
-          >
+            <GraduationCap size={26} strokeWidth={1.6} />
+          </span>
+          <h1 className="text-xl font-bold tracking-tight">Vertretungsplan</h1>
+          <p className="text-sm mt-0.5 text-muted-foreground">
             Schule Infoportal
           </p>
         </div>
 
-        {/* Card */}
-        <div
-          className="rounded-2xl p-7 shadow-2xl"
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-          }}
+        <form
+          className="flex flex-col gap-4 rounded-2xl border bg-card p-7"
+          onSubmit={handleSubmit}
         >
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Username */}
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="login-username"
-                className="text-[11px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--muted-foreground)" }}
-              >
-                Benutzername
-              </label>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass} htmlFor="login-username">
+              Benutzername
+            </label>
+            <input
+              required
+              autoCapitalize="none"
+              autoComplete="username"
+              className={inputClass}
+              disabled={loading}
+              id="login-username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass} htmlFor="login-password">
+              Passwort
+            </label>
+            <div className="relative">
               <input
                 required
-                id="login-username"
-                type="text"
-                value={username}
-                placeholder="Benutzername"
-                autoComplete="username"
+                autoComplete="current-password"
+                className={`${inputClass} pr-10`}
                 disabled={loading}
-                className="h-9 rounded-xl px-3.5 text-sm outline-none transition-all"
-                style={{
-                  background: "var(--input)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-                onFocus={(e) =>
-                  (e.currentTarget.style.boxShadow = `0 0 0 2px ${ACCENT.glow(0.6)}`)
-                }
-                onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                onChange={(e) => setUsername(e.target.value)}
+                id="login-password"
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
-            </div>
-
-            {/* Password */}
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="login-password"
-                className="text-[11px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--muted-foreground)" }}
+              <button
+                aria-label={showPw ? "Passwort verbergen" : "Passwort anzeigen"}
+                aria-pressed={showPw}
+                className="absolute right-1 top-1/2 -translate-y-1/2 size-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
               >
-                Passwort
-              </label>
-              <div className="relative">
-                <input
-                  id="login-password"
-                  type={showPw ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Passwort"
-                  autoComplete="current-password"
-                  required
-                  disabled={loading}
-                  className="h-9 w-full rounded-xl px-3.5 pr-10 text-sm outline-none transition-all"
-                  style={{
-                    background: "var(--input)",
-                    border: "1px solid var(--border)",
-                    color: "var(--foreground)",
-                  }}
-                  onFocus={(e) =>
-                    (e.currentTarget.style.boxShadow = `0 0 0 2px ${ACCENT.glow(0.6)}`)
-                  }
-                  onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {showPw ? (
-                    <svg
-                      width={16}
-                      height={16}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width={16}
-                      height={16}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                      <circle cx={12} cy={12} r={3} />
-                    </svg>
-                  )}
-                </button>
-              </div>
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
+          </div>
 
-            {/* Error */}
-            {error && (
-              <div
-                className="flex items-start gap-2.5 rounded-xl px-3.5 py-2.5 text-xs animate-si-fade-in"
-                style={{
-                  background: "rgba(239,68,68,0.08)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                  color: "rgb(252,165,165)",
-                }}
-              >
-                <svg
-                  width={14}
-                  height={14}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mt-0.5 shrink-0"
-                >
-                  <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                </svg>
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading || !username || !password}
-              className="h-9 rounded-xl text-sm font-semibold transition-all mt-0.5 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{
-                background: `linear-gradient(135deg, ${ACCENT.base} 0%, ${ACCENT.deep} 100%)`,
-                color: ACCENT.fg,
-                boxShadow: `0 4px 16px ${ACCENT.glow(0.35)}`,
-              }}
+          {error && (
+            <p
+              className="flex items-start gap-2 text-sm"
+              role="alert"
+              style={{ color: "var(--tone-red)" }}
             >
-              {loading ? (
-                <>
-                  <span
-                    className="w-3.5 h-3.5 rounded-full border-2 border-t-transparent animate-spin"
-                    style={{
-                      borderColor: "oklch(0.24 0.05 101.49 / 0.4)",
-                      borderTopColor: "transparent",
-                    }}
-                  />
-                  Anmelden…
-                </>
-              ) : (
-                "Anmelden"
-              )}
-            </button>
-          </form>
-        </div>
+              <TriangleAlert className="mt-0.5 shrink-0" size={16} />
+              {error}
+            </p>
+          )}
 
-        <p
-          className="text-center text-[11px] mt-5"
-          style={{ color: "oklch(0.4 0 0)" }}
-        >
+          <button
+            className="mt-1 h-10 rounded-xl text-brand-fg text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-95 active:scale-[0.98] disabled:opacity-70 disabled:cursor-wait"
+            disabled={loading}
+            style={{ background: brandGradient }}
+            type="submit"
+          >
+            {loading && <LoaderCircle className="animate-spin" size={16} />}
+            {loading ? "Anmelden…" : "Anmelden"}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-[11px] text-muted-foreground">
           Schule Infoportal · Vertretungsplan
         </p>
       </div>
-    </div>
+    </main>
   );
 }

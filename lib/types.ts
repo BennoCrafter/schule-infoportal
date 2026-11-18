@@ -24,9 +24,15 @@ export interface LastUpdated {
 // -------------------------
 // News Types
 // -------------------------
-export interface NewsMessage {
-  message: string;
+export interface RawNewsMessage {
+  raw_text: string;
   date: string; // YYYY-MM-DD
+}
+
+export interface NewsFilters {
+  date?: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 // -------------------------

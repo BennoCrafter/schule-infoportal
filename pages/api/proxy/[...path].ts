@@ -1,13 +1,19 @@
 /**
  * Catch-all proxy: forwards every GET /api/proxy/<...path>?<qs>
  * to the real Schule-Infoportal API, injecting the Basic-Auth
- * credentials from the incoming Authorization header.
+ * credentials from the encrypted session cookie.
  *
  * This sidesteps CORS – the browser only ever talks to the same origin.
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const API_BASE = "https://schule-infoportal-api.vercel.app";
+import {
+  API_BASE,
+  basicAuth,
+  SESSION_COOKIE,
+  sessionCookie,
+  unseal,
+} from "@/lib/session";
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,13 +38,17 @@ export default async function handler(
   const queryStr = qs.toString();
   const targetUrl = `${API_BASE}/${pathStr}${queryStr ? `?${queryStr}` : ""}`;
 
-  // Forward the Authorization header that axios sent from the browser
+  const token = req.cookies[SESSION_COOKIE];
+  const creds = await unseal(token);
+
+  if (!creds) return res.status(401).json({ error: "Not logged in" });
+  // Rolling session: every request pushes the expiry out again
+  res.setHeader("Set-Cookie", sessionCookie(token!));
+
   const headers: Record<string, string> = {
     Accept: "application/json",
+    Authorization: basicAuth(creds),
   };
-  if (req.headers.authorization) {
-    headers["Authorization"] = req.headers.authorization;
-  }
 
   try {
     const upstream = await fetch(targetUrl, {

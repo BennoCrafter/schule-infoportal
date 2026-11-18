@@ -1,6 +1,7 @@
 import type {
   Substitution,
-  NewsMessage,
+  RawNewsMessage,
+  NewsFilters,
   LastUpdated,
   SubstitutionFilters,
 } from "./types";
@@ -41,24 +42,10 @@ export class SchuleInfoportalAPI {
     return res.data;
   }
 
-  async getAllNews(): Promise<NewsMessage[]> {
-    const res: AxiosResponse<NewsMessage[]> =
-      await this.client.get<NewsMessage[]>("/news");
-
-    return res.data;
-  }
-
-  async getTodayNews(): Promise<NewsMessage[]> {
-    const res: AxiosResponse<NewsMessage[]> =
-      await this.client.get<NewsMessage[]>("/news/today");
-
-    return res.data;
-  }
-
-  async getNewsForDate(date: string): Promise<NewsMessage[]> {
-    const res: AxiosResponse<NewsMessage[]> = await this.client.get<
-      NewsMessage[]
-    >(`/news/date/${date}`);
+  async getRawNews(filters?: NewsFilters): Promise<RawNewsMessage[]> {
+    const res: AxiosResponse<RawNewsMessage[]> = await this.client.get<
+      RawNewsMessage[]
+    >("/news/raw", { params: filters });
 
     return res.data;
   }

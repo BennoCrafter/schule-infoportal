@@ -76,6 +76,12 @@
   --color-sidebar-border: var(--sidebar-border);
 
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
+  --color-faint: var(--faint);
 }
 
 :root {
@@ -142,6 +148,20 @@
   --sidebar-border: oklch(0.922 0 0);
 
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* App tokens — brand yellow + status tones, tuned per theme for contrast */
+  --brand: oklch(0.9 0.16 101.49);
+  --brand-deep: oklch(0.8 0.16 101.49);
+  --brand-fg: oklch(0.24 0.05 101.49);
+  --brand-text: oklch(0.5 0.11 101.49);
+  --brand-soft: oklch(0.9 0.16 101.49 / 0.25);
+  --faint: oklch(0.7 0 0);
+  --tone-red: oklch(0.52 0.19 25);
+  --tone-amber: oklch(0.52 0.12 70);
+  --tone-green: oklch(0.5 0.13 150);
+  --tone-violet: oklch(0.5 0.17 295);
+  --tone-blue: oklch(0.5 0.15 255);
+  --tone-neutral: oklch(0.5 0 0);
 }
 
 .dark {
@@ -206,6 +226,18 @@
   --sidebar-border: oklch(1 0 0 / 10%);
 
   --sidebar-ring: oklch(0.556 0 0);
+
+  --brand: oklch(0.9333 0.1567 101.49);
+  --brand-deep: oklch(0.78 0.16 101.49);
+  --brand-text: oklch(0.88 0.15 101.49);
+  --brand-soft: oklch(0.9333 0.1567 101.49 / 0.14);
+  --faint: oklch(0.45 0 0);
+  --tone-red: oklch(0.78 0.13 25);
+  --tone-amber: oklch(0.83 0.12 80);
+  --tone-green: oklch(0.82 0.13 150);
+  --tone-violet: oklch(0.78 0.12 295);
+  --tone-blue: oklch(0.78 0.11 255);
+  --tone-neutral: oklch(0.72 0 0);
 }
 
 @layer base {
@@ -214,6 +246,16 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Tailwind v4 resets buttons to the default cursor */
+  button:not(:disabled),
+  [role="button"],
+  [role="tab"] {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--brand-text);
+    outline-offset: 2px;
   }
 
   /* Custom scrollbar */
@@ -225,11 +267,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: oklch(0.35 0 0);
+    background: var(--border);
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.45 0 0);
+    background: var(--ring);
   }
 }
 
@@ -239,17 +281,6 @@
   }
   to {
     opacity: 1;
-  }
-}
-
-@keyframes si-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -266,9 +297,6 @@
 .animate-si-fade-in {
   animation: si-fade-in 0.2s ease-out both;
 }
-.animate-si-slide-up {
-  animation: si-slide-up 0.25s ease-out both;
-}
 .animate-si-pulse {
   animation: si-pulse-slow 2.5s ease-in-out infinite;
 }
@@ -280,4 +308,20 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-si-pulse {
+    animation: none;
+  }
+}
+
+/* Swipeable week days on phones */
+.snap-row {
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+}
+.snap-row > * {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }

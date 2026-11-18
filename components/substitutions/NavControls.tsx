@@ -1,4 +1,9 @@
-import { ACCENT, type ViewMode } from "./theme";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, List } from "lucide-react";
+
+import { type ViewMode } from "./theme";
+
+import { classGrade, cn } from "@/lib/utils";
 
 export function NavBtn({
   onClick,
@@ -12,71 +17,146 @@ export function NavBtn({
   return (
     <button
       aria-label={label}
-      className="p-1.5 rounded-lg transition-all"
-      style={{ color: "var(--muted-foreground)" }}
+      className="inline-flex items-center justify-center size-9 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      title={label}
       onClick={onClick}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--muted)";
-        e.currentTarget.style.color = "var(--foreground)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
-        e.currentTarget.style.color = "var(--muted-foreground)";
-      }}
     >
       {children}
     </button>
   );
 }
 
-export function Divider({ hideOnMobile = false }: { hideOnMobile?: boolean }) {
-  return (
-    <div
-      className={`w-px h-4 shrink-0 ${hideOnMobile ? "hidden sm:block" : ""}`}
-      style={{ background: "var(--border)" }}
-    />
-  );
-}
-
-export function FilterPill({
+function Chip({
   active,
+  open = false,
+  grade,
   onClick,
   children,
-  grayedOut = false,
 }: {
   active: boolean;
+  open?: boolean;
+  grade?: string;
   onClick: () => void;
   children: React.ReactNode;
-  grayedOut?: boolean;
 }) {
-  const style =
-    active && grayedOut
-      ? {
-          background: "var(--muted)",
-          color: "var(--muted-foreground)",
-          border: `1px solid ${ACCENT.soft(0.4)}`,
-        }
-      : active
-        ? {
-            background: `linear-gradient(135deg, ${ACCENT.base}, ${ACCENT.deep})`,
-            color: ACCENT.fg,
-            boxShadow: `0 2px 8px ${ACCENT.glow(0.35)}`,
-          }
-        : {
-            background: "var(--muted)",
-            color: "var(--muted-foreground)",
-            border: "1px solid var(--border)",
-          };
-
   return (
     <button
-      className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all disabled:cursor-not-allowed"
-      style={style}
-      disabled={grayedOut}
+      aria-pressed={active}
+      data-grade={grade}
+      className={cn(
+        "shrink-0 h-8 min-w-10 px-3 rounded-md border text-sm font-medium transition-colors",
+        active
+          ? "bg-brand text-brand-fg border-transparent"
+          : open
+            ? "border-foreground/40 text-foreground"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted",
+      )}
       onClick={onClick}
     >
       {children}
     </button>
+  );
+}
+
+// Two-step picker: grades first, then that grade's classes. A grade with a
+// single class selects it directly.
+export function ClassPicker({
+  classes,
+  selected,
+  onSelect,
+}: {
+  classes: string[];
+  selected: string;
+  onSelect: (cls: string) => void;
+}) {
+  const groups = useMemo(() => {
+    const map = new Map<string, string[]>();
+
+    for (const cls of classes) {
+      const g = classGrade(cls);
+
+      map.set(g, [...(map.get(g) ?? []), cls]);
+    }
+
+    return map;
+  }, [classes]);
+  const selectedGrade = selected === "all" ? null : classGrade(selected);
+  const [openGrade, setOpenGrade] = useState<string | null>(null);
+  const shownGrade = openGrade ?? selectedGrade;
+  const letters = shownGrade ? groups.get(shownGrade) : undefined;
+
+  // Line the class row up under its grade chip, clamped so it stays on screen
+  const gradeRowRef = useRef<HTMLDivElement>(null);
+  const lettersRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState(0);
+  const align = useCallback(() => {
+    const row = gradeRowRef.current;
+    const chip = row?.querySelector<HTMLElement>(
+      `[data-grade="${shownGrade}"]`,
+    );
+
+    if (!row || !chip || !lettersRef.current) return;
+    const max = row.clientWidth - lettersRef.current.scrollWidth;
+
+    setOffset(Math.max(0, Math.min(chip.offsetLeft - row.scrollLeft, max)));
+  }, [shownGrade]);
+
+  useEffect(() => {
+    align();
+    window.addEventListener("resize", align);
+
+    return () => window.removeEventListener("resize", align);
+  }, [align, letters]);
+
+  const pick = (cls: string) => {
+    onSelect(cls);
+    setOpenGrade(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-2 min-w-0">
+      <div
+        ref={gradeRowRef}
+        aria-label="Klasse wählen"
+        className="relative flex gap-1.5 overflow-x-auto scrollbar-hide"
+        role="group"
+        onScroll={align}
+      >
+        <Chip active={selected === "all"} onClick={() => pick("all")}>
+          Alle
+        </Chip>
+        {[...groups].map(([grade, list]) => (
+          <Chip
+            key={grade}
+            active={selectedGrade === grade}
+            grade={grade}
+            open={shownGrade === grade}
+            onClick={() =>
+              list.length === 1
+                ? pick(list[0])
+                : setOpenGrade(openGrade === grade ? null : grade)
+            }
+          >
+            {list.length === 1 ? list[0] : grade}
+          </Chip>
+        ))}
+      </div>
+      {letters && letters.length > 1 && (
+        <div
+          ref={lettersRef}
+          aria-label={`Klassen im Jahrgang ${shownGrade}`}
+          className="flex w-max max-w-full gap-1.5 overflow-x-auto scrollbar-hide"
+          role="group"
+          style={{ marginLeft: offset }}
+        >
+          {letters.map((cls) => (
+            <Chip key={cls} active={selected === cls} onClick={() => pick(cls)}>
+              {cls}
+            </Chip>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -89,65 +169,26 @@ export function ViewToggle({
 }) {
   return (
     <div
-      className="flex items-center rounded-lg p-0.5 shrink-0"
-      style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+      aria-label="Ansicht"
+      className="flex items-center rounded-md border p-0.5 shrink-0"
+      role="group"
     >
-      {(["day", "week"] as ViewMode[]).map((m) => {
-        const active = mode === m;
-
-        return (
-          <button
-            key={m}
-            title={m === "day" ? "Tagesansicht" : "Wochenansicht"}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all"
-            style={
-              active
-                ? {
-                    background: "var(--card)",
-                    color: "var(--foreground)",
-                    boxShadow: "0 1px 4px oklch(0 0 0 / 0.25)",
-                  }
-                : { color: "var(--muted-foreground)" }
-            }
-            onClick={() => onChange(m)}
-          >
-            {m === "day" ? (
-              <>
-                <svg
-                  width={12}
-                  height={12}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2.2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                </svg>
-                <span className="hidden sm:inline">Tag</span>
-              </>
-            ) : (
-              <>
-                <svg
-                  width={12}
-                  height={12}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2.2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h18" />
-                </svg>
-                <span className="hidden sm:inline">Woche</span>
-              </>
-            )}
-          </button>
-        );
-      })}
+      {(["list", "week"] as ViewMode[]).map((m) => (
+        <button
+          key={m}
+          aria-pressed={mode === m}
+          className={cn(
+            "flex items-center gap-1.5 h-8 px-3 rounded text-sm font-medium transition-colors",
+            mode === m
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => onChange(m)}
+        >
+          {m === "list" ? <List size={15} /> : <CalendarDays size={15} />}
+          {m === "list" ? "Liste" : "Woche"}
+        </button>
+      ))}
     </div>
   );
 }

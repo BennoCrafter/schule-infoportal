@@ -15,7 +15,6 @@ export const hexToRgb = (hex: string): [number, number, number] => {
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
-const DAYS_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const DAYS_LONG = [
   "Sonntag",
   "Montag",
@@ -84,12 +83,6 @@ export function isToday(dateStr: string): boolean {
   return dateStr === getTodayStr();
 }
 
-export function formatDateShort(dateStr: string): string {
-  const d = parseDateStr(dateStr);
-
-  return `${DAYS_SHORT[d.getDay()]}, ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
-}
-
 export function formatDateLong(dateStr: string): string {
   const d = parseDateStr(dateStr);
 
@@ -126,6 +119,16 @@ export function classComparator(a: string, b: string): number {
   const [bn, bs] = parseGrade(b);
   if (an !== bn) return an - bn;
   return as_.localeCompare(bs);
+}
+
+// Grade a class belongs to: "10c" → "10", "Q1"/"EF" → themselves, else "Sonstige"
+export function classGrade(cls: string): string {
+  const [n] = parseGrade(cls);
+
+  if (n < 190) return String(n);
+  if (n < 999) return cls.toUpperCase();
+
+  return "Sonstige";
 }
 
 // ─── Week helpers ─────────────────────────────────────────────────────────────
@@ -178,49 +181,48 @@ export function formatWeekLabel(mondayStr: string): string {
   return `KW\u00a0${kw}\u2002\u00b7\u2002${monday.getDate()}. ${MONTHS_SHORT[monday.getMonth()]}\u2013${friday.getDate()}. ${MONTHS_SHORT[friday.getMonth()]} ${friday.getFullYear()}`;
 }
 
-// ─── Info badge styling ───────────────────────────────────────────────────────
+// ─── Info badge ───────────────────────────────────────────────────────────────
 
-export interface InfoStyle {
-  bg: string;
-  text: string;
-  border: string;
+// The upstream API sometimes sends English status values; show them in German.
+const INFO_LABELS: Record<string, string> = {
+  cancelled: "Entfall",
+  canceled: "Entfall",
+  substituted: "Vertretung",
+  substitution: "Vertretung",
+  "room change": "Raumänderung",
+  room_change: "Raumänderung",
+  "self study": "Selbststudium",
+  exam: "Klausur",
+};
+
+export function translateInfo(info: string): string {
+  return INFO_LABELS[info.trim().toLowerCase()] ?? info;
 }
 
-export function getInfoStyle(info: string): InfoStyle {
+export type InfoTone =
+  | "red"
+  | "amber"
+  | "green"
+  | "violet"
+  | "blue"
+  | "neutral";
+
+// Expects the German label (see translateInfo)
+export function getInfoTone(info: string): InfoTone {
   const l = info.toLowerCase();
-  if (l.includes("entfällt") || l.includes("entfallt") || l.includes("frei"))
-    return {
-      bg: "rgba(239,68,68,0.1)",
-      text: "rgb(252,165,165)",
-      border: "rgba(239,68,68,0.25)",
-    };
-  if (l.includes("raumänderung") || l.includes("raumaenderung"))
-    return {
-      bg: "rgba(245,158,11,0.1)",
-      text: "rgb(252,211,77)",
-      border: "rgba(245,158,11,0.25)",
-    };
-  if (l.includes("selbst") || l.includes("eigenver"))
-    return {
-      bg: "rgba(34,197,94,0.1)",
-      text: "rgb(134,239,172)",
-      border: "rgba(34,197,94,0.25)",
-    };
+
+  if (
+    l.includes("entfall") ||
+    l.includes("entfällt") ||
+    l.includes("entfallt") ||
+    l.includes("frei")
+  )
+    return "red";
+  if (l.includes("raumänderung") || l.includes("raumaenderung")) return "amber";
+  if (l.includes("selbst") || l.includes("eigenver")) return "green";
   if (l.includes("klausur") || l.includes("prüfung") || l.includes("test"))
-    return {
-      bg: "rgba(139,92,246,0.1)",
-      text: "rgb(196,181,253)",
-      border: "rgba(139,92,246,0.25)",
-    };
-  if (l.includes("vertretung"))
-    return {
-      bg: "rgba(59,130,246,0.1)",
-      text: "rgb(147,197,253)",
-      border: "rgba(59,130,246,0.25)",
-    };
-  return {
-    bg: "rgba(113,113,122,0.15)",
-    text: "rgb(161,161,170)",
-    border: "rgba(113,113,122,0.3)",
-  };
+    return "violet";
+  if (l.includes("vertretung")) return "blue";
+
+  return "neutral";
 }

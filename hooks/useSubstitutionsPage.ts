@@ -1,16 +1,21 @@
-import type { LastUpdated, NewsMessage, Substitution } from "@/lib/types";
+import type { LastUpdated, RawNewsMessage, Substitution } from "@/lib/types";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 
+import { siteConfig } from "@/config/site";
 import { SchuleInfoportalAPI } from "@/lib/schule-infoportal-api";
+import {
+  logout as endSession,
+  getSessionUser,
+  migrateLegacyAuth,
+} from "@/lib/auth";
 import {
   addDays,
   classComparator,
   getMondayOfWeek,
   getTodayStr,
   getWeekDays,
-  isToday,
 } from "@/lib/utils";
 import {
   API_URL,
@@ -21,46 +26,40 @@ import {
 
 export function useSubstitutionsPage() {
   const router = useRouter();
-  const apiRef = useRef<SchuleInfoportalAPI | null>(null);
+  const apiRef = useRef(new SchuleInfoportalAPI(API_URL));
+  // Data fetches wait until legacy credentials (if any) became a session cookie
+  const [ready, setReady] = useState(false);
 
   // ── View / filter ──────────────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedClass, setSelectedClass] = useState("all");
 
-  // ── Day-view state ─────────────────────────────────────────────────────────
-  const [selectedDate, setSelectedDate] = useState(getTodayStr);
-  const [daySubs, setDaySubs] = useState<Substitution[]>([]);
-  const [news, setNews] = useState<NewsMessage[]>([]);
+  // ── Week data (both views show one week) ────────────────────────────────────
   const [lastUpdated, setLastUpdated] = useState<LastUpdated | null>(null);
-  const [dayLoading, setDayLoading] = useState(true);
-
-  // ── Week-view state ────────────────────────────────────────────────────────
   const [weekStart, setWeekStart] = useState(() =>
     getMondayOfWeek(getTodayStr()),
   );
   const [weekSubs, setWeekSubs] = useState<Substitution[]>([]);
-  const [weekNews, setWeekNews] = useState<NewsMessage[]>([]);
-  const [weekLoading, setWeekLoading] = useState(false);
+  const [weekNews, setWeekNews] = useState<RawNewsMessage[]>([]);
+  const [weekLoading, setWeekLoading] = useState(true);
 
   // ── Shared ─────────────────────────────────────────────────────────────────
   const [error, setError] = useState<string | null>(null);
+  // Every class seen in the full substitution history (the API has no class list)
+  const [allClasses, setAllClasses] = useState<string[]>([]);
 
-  // ── Auth guard ─────────────────────────────────────────────────────────────
+  // ── Session bootstrap ──────────────────────────────────────────────────────
+  // No explicit guard: the proxy answers 401 without a session, and
+  // handleError sends the user to the login page.
+  const [username, setUsername] = useState<string | null>(null);
+
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("schule_auth");
-
-      if (!raw) {
-        router.replace("/");
-
-        return;
-      }
-      const { username, password } = JSON.parse(raw);
-
-      apiRef.current = new SchuleInfoportalAPI(API_URL, username, password);
-    } catch {
-      router.replace("/");
-    }
+    migrateLegacyAuth()
+      .then(getSessionUser)
+      .then((user) => {
+        setUsername(user);
+        setReady(true);
+      });
   }, []);
 
   // ── Restore persisted class filter / view mode ──────────────────────────────
@@ -78,8 +77,9 @@ export function useSubstitutionsPage() {
       if (storedClass) setSelectedClass(storedClass);
       const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
 
-      if (storedView === "day" || storedView === "week")
+      if (storedView === "list" || storedView === "week")
         setViewMode(storedView);
+      else if (storedView === "day") setViewMode("list"); // pre-"Liste" value
     } catch {}
   }, []);
 
@@ -110,75 +110,37 @@ export function useSubstitutionsPage() {
     const msg = err instanceof Error ? err.message : "";
 
     if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
-      localStorage.removeItem("schule_auth");
-      router.replace("/");
+      endSession().then(() => router.replace("/"));
     } else {
       setError("Fehler beim Laden der Daten.");
     }
   }, []);
 
-  const dayFetchId = useRef(0);
   const weekFetchId = useRef(0);
-
-  // ── Day fetch ──────────────────────────────────────────────────────────────
-  const fetchDayData = useCallback(async () => {
-    if (!apiRef.current) return;
-    const requestId = ++dayFetchId.current;
-
-    setDayLoading(true);
-    setError(null);
-    try {
-      const [subs, newsData, updated] = await Promise.all([
-        apiRef.current.getSubstitutions({ date: selectedDate }),
-        isToday(selectedDate)
-          ? apiRef.current.getTodayNews()
-          : apiRef.current.getNewsForDate(selectedDate),
-        apiRef.current.getLastUpdated(),
-      ]);
-
-      if (requestId !== dayFetchId.current) return;
-      // Day view: sort by period first, then class
-      setDaySubs(
-        [...subs].sort((a, b) => {
-          const pp =
-            (parseInt(a.period, 10) || 0) - (parseInt(b.period, 10) || 0);
-
-          return pp !== 0 ? pp : classComparator(a.class_name, b.class_name);
-        }),
-      );
-      setNews(newsData);
-      setLastUpdated(updated);
-    } catch (e) {
-      if (requestId !== dayFetchId.current) return;
-      handleError(e);
-    } finally {
-      if (requestId === dayFetchId.current) setDayLoading(false);
-    }
-  }, [selectedDate, handleError]);
 
   // ── Week fetch ─────────────────────────────────────────────────────────────
   const fetchWeekData = useCallback(async () => {
-    if (!apiRef.current) return;
+    if (!ready) return;
     const requestId = ++weekFetchId.current;
 
     setWeekLoading(true);
     setError(null);
     try {
       const weekEnd = addDays(weekStart, 4);
-      const [subs, allNews, updated] = await Promise.all([
+      const [subs, newsData, updated] = await Promise.all([
         apiRef.current.getSubstitutions({
           start_date: weekStart,
           end_date: weekEnd,
         }),
-        apiRef.current.getAllNews(),
+        apiRef.current.getRawNews({ start_date: weekStart, end_date: weekEnd }),
         apiRef.current.getLastUpdated(),
       ]);
 
       if (requestId !== weekFetchId.current) return;
       setWeekSubs(subs);
       setWeekNews(
-        allNews
-          .filter((n) => n.date >= weekStart && n.date <= weekEnd)
+        newsData
+          .filter((n) => n.raw_text.trim())
           .sort((a, b) => a.date.localeCompare(b.date)),
       );
       setLastUpdated(updated);
@@ -188,47 +150,41 @@ export function useSubstitutionsPage() {
     } finally {
       if (requestId === weekFetchId.current) setWeekLoading(false);
     }
-  }, [weekStart, handleError]);
+  }, [ready, weekStart, handleError]);
 
-  // Fetch on mount / when params change
   useEffect(() => {
-    fetchDayData();
-  }, [fetchDayData]);
-  useEffect(() => {
-    if (viewMode === "week") fetchWeekData();
-  }, [viewMode, fetchWeekData]);
+    if (!ready) return;
+    apiRef.current
+      .getSubstitutions()
+      .then((subs) => setAllClasses(subs.map((s) => s.class_name)))
+      .catch(() => {}); // picker falls back to the classes currently loaded
+  }, [ready]);
 
-  // Auto-refresh every 5 min
+  // Fetch on mount / when the week changes, and auto-refresh every 5 min
   useEffect(() => {
-    const id = setInterval(() => {
-      if (viewMode === "day") fetchDayData();
-      else fetchWeekData();
-    }, 5 * 60_000);
+    fetchWeekData();
+    const id = setInterval(fetchWeekData, 5 * 60_000);
 
     return () => clearInterval(id);
-  }, [viewMode, fetchDayData, fetchWeekData]);
+  }, [fetchWeekData]);
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
-  // Available classes for the filter — natural-sorted, from the active view's data
+  // Classes for the filter — natural-sorted, from all known data, so every
+  // class stays pickable even on days it has no entries.
   const availableClasses = useMemo(() => {
-    const src = viewMode === "day" ? daySubs : weekSubs;
+    const names = new Set([
+      ...siteConfig.schoolClasses,
+      ...allClasses,
+      ...weekSubs.map((s) => s.class_name),
+    ]);
 
-    return Array.from(new Set(src.map((s) => s.class_name))).sort(
-      classComparator,
-    );
-  }, [viewMode, daySubs, weekSubs]);
+    if (selectedClass !== "all") names.add(selectedClass);
 
-  // Day view: filter
-  const filteredDaySubs = useMemo(
-    () =>
-      selectedClass === "all"
-        ? daySubs
-        : daySubs.filter((s) => s.class_name === selectedClass),
-    [daySubs, selectedClass],
-  );
+    return Array.from(names).filter(Boolean).sort(classComparator);
+  }, [allClasses, weekSubs, selectedClass]);
 
-  // Week view: group by day → sort within each day → filter
+  // Group by day → filter → sort by period, then class
   const weekByDay = useMemo(() => {
     const days = getWeekDays(weekStart);
     const map = new Map<string, Substitution[]>(days.map((d) => [d, []]));
@@ -243,16 +199,14 @@ export function useSubstitutionsPage() {
         selectedClass === "all"
           ? subs
           : subs.filter((s) => s.class_name === selectedClass);
-      // Week view: sort by CLASS first (natural), then period within each class
 
       result.set(
         day,
         [...filtered].sort((a, b) => {
-          const cc = classComparator(a.class_name, b.class_name);
+          const pp =
+            (parseInt(a.period, 10) || 0) - (parseInt(b.period, 10) || 0);
 
-          return cc !== 0
-            ? cc
-            : (parseInt(a.period, 10) || 0) - (parseInt(b.period, 10) || 0);
+          return pp !== 0 ? pp : classComparator(a.class_name, b.class_name);
         }),
       );
     }
@@ -273,40 +227,25 @@ export function useSubstitutionsPage() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const logout = useCallback(() => {
-    try {
-      localStorage.removeItem("schule_auth");
-    } catch {}
-    router.replace("/");
+    endSession().then(() => router.replace("/"));
   }, [router]);
-
-  const loading = viewMode === "day" ? dayLoading : weekLoading;
-  const handleRefresh = useCallback(
-    () => (viewMode === "day" ? fetchDayData() : fetchWeekData()),
-    [viewMode, fetchDayData, fetchWeekData],
-  );
 
   return {
     viewMode,
     setViewMode,
     selectedClass,
     setSelectedClass,
-    selectedDate,
-    setSelectedDate,
-    daySubs,
-    filteredDaySubs,
-    news,
     weekStart,
     setWeekStart,
     weekNews,
     lastUpdated,
-    dayLoading,
-    weekLoading,
-    loading,
+    loading: weekLoading,
     error,
     availableClasses,
     weekByDay,
     weekPeriods,
-    handleRefresh,
+    handleRefresh: fetchWeekData,
+    username,
     logout,
   };
 }

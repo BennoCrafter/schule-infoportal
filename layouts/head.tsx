@@ -12,11 +12,16 @@ export const Head = () => {
       <meta content={siteConfig.description} name="description" />
       <meta
         key="viewport"
-        content="viewport-fit=cover, width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
+        content="viewport-fit=cover, width=device-width, initial-scale=1"
         name="viewport"
       />
       <link href="/favicon.ico" rel="icon" />
-      <link href="/RoundedIcon.png" rel="icon" sizes="180x180" type="image/png" />
+      <link
+        href="/RoundedIcon.png"
+        rel="icon"
+        sizes="180x180"
+        type="image/png"
+      />
       <link href="/RoundedIcon.png" rel="apple-touch-icon" sizes="180x180" />
     </NextHead>
   );
